@@ -6,10 +6,16 @@ module.exports = function (grunt) {
         async = require("async");
 
     grunt.registerMultiTask("append-sourcemapping", "Append JavaScript sourcemapping URL comments to files", function () {
-        var done = this.async(),
-            files = this.files,
-            append = function(sourceFile, destFile, callback) {
-                fs.appendFile(destFile, "/*\n//@ sourceMappingURL=" + sourceFile + "\n*/", function(err) {
+        var that = this,
+            done = that.async(),
+            files = that.files,
+            options = that.options({
+                extAppend: '.map',
+                pathPrefix: '',
+                mapPathCalc: null
+            }),
+            append = function(sourceFile, destFile, mapFile, callback) {
+                fs.appendFile(destFile, "/*\n//@ sourceMappingURL=" + mapFile + "\n*/", function(err) {
                     if(err){throw err;}
 
                     // Print a success message.
@@ -22,7 +28,15 @@ module.exports = function (grunt) {
 
         async.forEach(files, function(file, files_done) {
             async.forEach(file.src, function(src, src_done) {
-                var dest = file.dest;
+                var dest = file.dest,
+                    map = dest
+                ;
+
+                if(typeof options.mapPathCalc === 'function') {
+                    map = options.mapPathCalc.call(that, map, options);
+                }
+
+                map = options.pathPrefix + map + options.extAppend
 
                 if (!grunt.file.exists(src)) {
                     return src_done('Source file "' + src + '" not found.');
@@ -33,12 +47,12 @@ module.exports = function (grunt) {
                 }
 
                 if (!grunt.file.exists(dest)) {
-                    append(src, dest, src_done);
+                    append(src, dest, map, src_done);
                 } else {
                     fs.readFile(dest, function(err, data) {
                         if (err) {throw err;}
-                        if(!data.toString().match(/\/\/@ sourceMappingURL=[^\n]*\n\*\/$/)) {
-                            append(src, dest, src_done);
+                        if(!data.toString().match(/\/\/@ sourceMappingURL=[^\n]*\n\*\/\s*$/)) {
+                            append(src, dest, map, src_done);
                         } else {
                             src_done(err);
                         }
@@ -54,5 +68,4 @@ module.exports = function (grunt) {
             done();
         });
     });
-
 };
